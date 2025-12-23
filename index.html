@@ -3,18 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MAPRO</title>
+    <title>문제 만들기 도구</title>
     <style>
         body { font-family: 'Pretendard', -apple-system, sans-serif; display: flex; margin: 0; height: 100vh; background: #f5f5f5; color: #333; }
-        
-        /* 좌측 편집기 */
         .editor { width: 50%; padding: 30px; overflow-y: auto; border-right: 2px solid #ddd; background: #fff; box-sizing: border-box; }
         h2 { border-bottom: 2px solid #333; padding-bottom: 10px; margin-top: 0; }
         .input-group { margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9em; color: #555; }
         
-        .type-selector { display: flex; gap: 8px; margin-bottom: 20px; }
-        .type-btn { flex: 1; padding: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; font-size: 0.9em; }
+        .type-selector { display: flex; gap: 8px; margin-bottom: 15px; }
+        .type-btn { flex: 1; padding: 12px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .type-btn.active { background: #4a90e2; color: white; border-color: #4a90e2; }
 
         textarea, input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 1em; }
@@ -26,7 +24,7 @@
         .action-btns { display: flex; gap: 10px; }
         .btn-secondary { background: #eee; color: #333; flex: 1; padding: 10px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; }
 
-        /* 우측 영역 */
+        /* 미리보기 영역 */
         .preview-container { width: 50%; display: flex; flex-direction: column; background: #fafafa; }
         .tabs { display: flex; border-bottom: 1px solid #ddd; background: #fff; }
         .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; color: #999; }
@@ -34,16 +32,13 @@
         .tab-content { flex: 1; padding: 30px; overflow-y: auto; display: none; }
         .tab-content.active { display: block; }
 
-        /* 문제 카드 & 보기 박스 디자인 */
         .question-card { background: white; padding: 35px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; margin-bottom: 20px; }
-        .box-content { border: 1px solid #333; padding: 15px; margin: 15px 0; background: #fff; position: relative; }
-        .box-content::before { content: "<보 기>"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 0.9em; font-weight: bold; }
+        .box-preview { border: 1px solid #333; padding: 15px; margin: 15px 0; background: #fff; position: relative; white-space: pre-wrap; }
+        .box-preview::before { content: "<보 기>"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 0.9em; font-weight: bold; }
         
         .preview-img { max-width: 100%; margin: 15px 0; border-radius: 4px; }
         .card-controls { position: absolute; top: 15px; right: 15px; display: flex; gap: 8px; }
         .control-btn { cursor: pointer; background: #f0f0f0; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
-
-        @media print { .editor, .tabs, .card-controls { display: none; } .preview-container, .tab-content { width: 100%; display: block !important; } }
     </style>
 </head>
 <body>
@@ -52,31 +47,35 @@
     <h2 id="editor-title">문제 편집기</h2>
     
     <div class="input-group">
-        <label>문제 유형</label>
+        <label>문제 유형 선택</label>
         <div class="type-selector">
-            <button class="type-btn active" onclick="changeType('multiple')">오지선다</button>
-            <button class="type-btn" onclick="changeType('box')">보기형</button>
-            <button class="type-btn" onclick="changeType('short')">단답형</button>
+            <button class="type-btn active" id="btn-multiple" onclick="setMainType('multiple')">오지선다형</button>
+            <button class="type-btn" id="btn-short" onclick="setMainType('short')">단답형</button>
+        </div>
+        <div id="box-option-toggle" style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; font-weight: normal; cursor: pointer;">
+                <input type="checkbox" id="use-box" onchange="toggleBoxInput()"> <span style="margin-left: 8px;">보기(박스) 추가하기</span>
+            </label>
         </div>
     </div>
 
     <div class="input-group">
         <label>문제 지문</label>
-        <textarea id="question-text" rows="3" placeholder="예: 다음 중 옳은 것을 고르시오."></textarea>
+        <textarea id="question-text" rows="3" placeholder="문제를 입력하세요."></textarea>
     </div>
 
     <div id="box-input-area" class="input-group" style="display: none;">
-        <label>보기 내용 (ㄱ, ㄴ, ㄷ...)</label>
-        <textarea id="box-text" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
+        <label>보기 박스 내용 (ㄱ, ㄴ, ㄷ...)</label>
+        <textarea id="box-content" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
     </div>
 
     <div class="input-group">
-        <label>이미지 업로드</label>
+        <label>이미지 업로드 (선택)</label>
         <input type="file" id="image-input" accept="image/*">
     </div>
 
     <div id="options-area" class="input-group">
-        <label id="options-label">선택지 및 정답 체크</label>
+        <label>선택지 및 정답 체크</label>
         <div class="options">
             <div class="option-item"><input type="radio" name="correct" value="0"> <span>①</span><input type="text" class="opt" placeholder="보기 1"></div>
             <div class="option-item"><input type="radio" name="correct" value="1"> <span>②</span><input type="text" class="opt" placeholder="보기 2"></div>
@@ -86,9 +85,9 @@
         </div>
     </div>
 
-    <div id="short-area" class="input-group" style="display: none;">
+    <div id="short-input-area" class="input-group" style="display: none;">
         <label>단답형 정답</label>
-        <input type="text" id="short-answer" placeholder="정답 입력">
+        <input type="text" id="short-answer" placeholder="정답을 입력하세요.">
     </div>
 
     <button id="btn-save" class="btn-save" onclick="saveQuestion()">+ 리스트에 추가하기</button>
@@ -97,21 +96,20 @@
     <div class="action-btns">
         <button class="btn-secondary" onclick="downloadJSON()">JSON 저장</button>
         <button class="btn-secondary" onclick="document.getElementById('file-loader').click()">불러오기</button>
-
     </div>
     <input type="file" id="file-loader" style="display:none" onchange="loadJSON(event)">
 </div>
 
 <div class="preview-container">
     <div class="tabs">
-        <div id="t-live" class="tab active" onclick="switchTab('live')">미리보기</div>
-        <div id="t-list" class="tab" onclick="switchTab('list')">리스트 (<span id="q-count">0</span>)</div>
+        <div id="t-live" class="tab active" onclick="switchTab('live')">실시간 미리보기</div>
+        <div id="t-list" class="tab" onclick="switchTab('list')">전체 리스트 (<span id="q-count">0</span>)</div>
     </div>
 
     <div id="tab-live" class="tab-content active">
         <div class="question-card">
-            <div id="p-question" style="font-size: 1.1em; font-weight: bold; white-space: pre-wrap;">지문을 입력하세요.</div>
-            <div id="p-box" class="box-content" style="display:none; white-space: pre-wrap;"></div>
+            <div id="p-question" style="font-size: 1.1em; font-weight: bold; white-space: pre-wrap;">문제를 입력하세요.</div>
+            <div id="p-box" class="box-preview" style="display:none;"></div>
             <img id="p-image" class="preview-img" style="display: none;">
             <div id="p-options-area" style="margin-top:15px;"><ul id="p-options" style="list-style:none; padding:0;"></ul></div>
             <div id="p-short-area" style="display:none; margin-top:15px; padding:10px; background:#f0f0f0; border-radius:4px;"><strong>정답:</strong> <span id="p-short-ans"></span></div>
@@ -124,41 +122,44 @@
 
 <script>
     let questions = [];
-    let currentType = 'multiple';
+    let currentMainType = 'multiple'; 
     let currentImage = "";
     let editingId = null;
 
-    function changeType(type) {
-        currentType = type;
-        document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.innerText.includes(type==='multiple'?'오지선다':type==='box'?'보기형':'단답형')));
-        
-        document.getElementById('box-input-area').style.display = (type === 'box' ? 'block' : 'none');
-        document.getElementById('options-area').style.display = (type === 'short' ? 'none' : 'block');
-        document.getElementById('short-area').style.display = (type === 'short' ? 'block' : 'none');
+    function setMainType(type) {
+        currentMainType = type;
+        document.getElementById('btn-multiple').classList.toggle('active', type === 'multiple');
+        document.getElementById('btn-short').classList.toggle('active', type === 'short');
+        document.getElementById('box-option-toggle').style.display = (type === 'multiple' ? 'block' : 'none');
+        document.getElementById('options-area').style.display = (type === 'multiple' ? 'block' : 'none');
+        document.getElementById('short-input-area').style.display = (type === 'short' ? 'block' : 'none');
+        if(type === 'short') { document.getElementById('use-box').checked = false; toggleBoxInput(); }
+        updatePreview();
+    }
+
+    function toggleBoxInput() {
+        const useBox = document.getElementById('use-box').checked;
+        document.getElementById('box-input-area').style.display = useBox ? 'block' : 'none';
         updatePreview();
     }
 
     function switchTab(tab) {
-        document.getElementById('tab-live').classList.toggle('active', tab === 'live');
-        document.getElementById('tab-list').classList.toggle('active', tab === 'list');
         document.getElementById('t-live').classList.toggle('active', tab === 'live');
         document.getElementById('t-list').classList.toggle('active', tab === 'list');
+        document.getElementById('tab-live').classList.toggle('active', tab === 'live');
+        document.getElementById('tab-list').classList.toggle('active', tab === 'list');
         if(tab==='list') renderList();
     }
 
     function updatePreview() {
-        document.getElementById('p-question').innerText = document.getElementById('question-text').value || "지문을 입력하세요.";
-        
-        const boxContent = document.getElementById('box-text').value;
+        document.getElementById('p-question').innerText = document.getElementById('question-text').value || "문제를 입력하세요.";
+        const useBox = document.getElementById('use-box').checked;
+        const boxVal = document.getElementById('box-content').value;
         const pBox = document.getElementById('p-box');
-        if(currentType === 'box' && boxContent) {
-            pBox.innerText = boxContent;
-            pBox.style.display = 'block';
-        } else {
-            pBox.style.display = 'none';
-        }
+        if(currentMainType === 'multiple' && useBox && boxVal) { pBox.innerText = boxVal; pBox.style.display = 'block'; }
+        else { pBox.style.display = 'none'; }
 
-        if(currentType !== 'short') {
+        if(currentMainType === 'multiple') {
             document.getElementById('p-options-area').style.display = 'block';
             document.getElementById('p-short-area').style.display = 'none';
             const pOptions = document.getElementById('p-options');
@@ -193,35 +194,24 @@
 
     function saveQuestion() {
         const text = document.getElementById('question-text').value.trim();
-        if(!text) return alert("지문을 입력하세요.");
-
-        let data = { id: editingId || Date.now(), type: currentType, text: text, image: currentImage };
-
-        if(currentType === 'box') data.box = document.getElementById('box-text').value;
-
-        if(currentType !== 'short') {
+        if(!text) return alert("문제를 입력하세요.");
+        let data = { id: editingId || Date.now(), mainType: currentMainType, useBox: document.getElementById('use-box').checked, text: text, image: currentImage };
+        if(data.useBox) data.boxContent = document.getElementById('box-content').value;
+        if(currentMainType === 'multiple') {
             const opts = Array.from(document.querySelectorAll('.opt')).map(i => i.value.trim());
             const correct = Array.from(document.querySelectorAll('input[name="correct"]')).find(r => r.checked)?.value;
-            if(opts.some(v => v === "")) return alert("모든 선택지를 입력하세요.");
+            if(opts.some(v => v === "")) return alert("5지선다를 모두 채워주세요.");
             if(correct === undefined) return alert("정답을 체크하세요.");
-            data.options = opts;
-            data.correct = correct;
+            data.options = opts; data.correct = correct;
         } else {
             const ans = document.getElementById('short-answer').value.trim();
             if(!ans) return alert("정답을 입력하세요.");
             data.answer = ans;
         }
-
-        if(editingId) {
-            questions[questions.findIndex(q => q.id === editingId)] = data;
-        } else {
-            questions.push(data);
-        }
-
+        if(editingId) { questions[questions.findIndex(q => q.id === editingId)] = data; }
+        else { questions.push(data); }
         document.getElementById('q-count').innerText = questions.length;
-        resetForm();
-        updatePreview();
-        switchTab('list');
+        resetForm(); updatePreview(); switchTab('list');
     }
 
     function editQuestion(id) {
@@ -230,23 +220,18 @@
         document.getElementById('editor-title').innerText = "문제 수정 중";
         document.getElementById('btn-save').innerText = "✅ 수정 완료";
         document.getElementById('btn-cancel').style.display = "block";
-
-        changeType(q.type);
+        setMainType(q.mainType);
         document.getElementById('question-text').value = q.text;
-        if(q.type === 'box') document.getElementById('box-text').value = q.box;
+        document.getElementById('use-box').checked = q.useBox;
+        toggleBoxInput();
+        if(q.useBox) document.getElementById('box-content').value = q.boxContent;
         currentImage = q.image;
-        if(q.image) {
-            document.getElementById('p-image').src = q.image;
-            document.getElementById('p-image').style.display = 'block';
-        }
-        if(q.type !== 'short') {
+        if(q.image) { document.getElementById('p-image').src = q.image; document.getElementById('p-image').style.display = 'block'; }
+        if(q.mainType === 'multiple') {
             q.options.forEach((val, i) => document.querySelectorAll('.opt')[i].value = val);
             document.querySelectorAll('input[name="correct"]')[q.correct].checked = true;
-        } else {
-            document.getElementById('short-answer').value = q.answer;
-        }
-        updatePreview();
-        switchTab('live');
+        } else { document.getElementById('short-answer').value = q.answer; }
+        updatePreview(); switchTab('live');
     }
 
     function resetForm() {
@@ -255,7 +240,9 @@
         document.getElementById('btn-save').innerText = "+ 리스트에 추가하기";
         document.getElementById('btn-cancel').style.display = "none";
         document.getElementById('question-text').value = '';
-        document.getElementById('box-text').value = '';
+        document.getElementById('use-box').checked = false;
+        toggleBoxInput();
+        document.getElementById('box-content').value = '';
         document.getElementById('image-input').value = '';
         currentImage = '';
         document.getElementById('p-image').style.display = 'none';
@@ -266,7 +253,7 @@
 
     function renderList() {
         const container = document.getElementById('question-list');
-        container.innerHTML = questions.length === 0 ? '<p>문제가 없습니다.</p>' : '';
+        container.innerHTML = questions.length === 0 ? '<p style="text-align:center; color:#999;">문제가 없습니다.</p>' : '';
         questions.forEach((q, idx) => {
             const card = document.createElement('div');
             card.className = 'question-card';
@@ -275,11 +262,11 @@
                     <button class="control-btn" onclick="editQuestion(${q.id})">수정</button>
                     <button class="control-btn" style="color:red;" onclick="removeQuestion(${q.id})">삭제</button>
                 </div>
-                <div style="font-weight:bold; color:#4a90e2; margin-bottom:10px;">문항 ${idx + 1}</div>
+                <div style="font-weight:bold; color:#4a90e2; margin-bottom:10px;">문항 ${idx + 1} (${q.mainType === 'multiple' ? '오지선다' : '단답형'})</div>
                 <div style="font-weight:bold; white-space:pre-wrap;">${q.text}</div>
-                ${q.type === 'box' ? `<div class="box-content" style="white-space:pre-wrap;">${q.box}</div>` : ''}
+                ${q.useBox ? `<div class="box-preview">${q.boxContent}</div>` : ''}
                 ${q.image ? `<img src="${q.image}" class="preview-img">` : ''}
-                ${q.type !== 'short' ? 
+                ${q.mainType === 'multiple' ? 
                     `<ul style="list-style:none; padding:0; margin-top:10px;">${q.options.map((o, i) => `<li style="${q.correct == i ? 'color:#4a90e2; font-weight:bold;' : ''}">${['①','②','③','④','⑤'][i]} ${o}</li>`).join('')}</ul>` : 
                     `<div style="margin-top:10px; padding:8px; background:#f0f0f0;"><strong>정답:</strong> ${q.answer}</div>`
                 }
@@ -289,12 +276,12 @@
     }
 
     function removeQuestion(id) { if(confirm("삭제할까요?")) { questions = questions.filter(q => q.id !== id); document.getElementById('q-count').innerText = questions.length; renderList(); } }
-    function downloadJSON() { const blob = new Blob([JSON.stringify(questions, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'test.json'; a.click(); }
+    function downloadJSON() { const blob = new Blob([JSON.stringify(questions, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'test_bank.json'; a.click(); }
     function loadJSON(e) { const reader = new FileReader(); reader.onload = (ev) => { questions = JSON.parse(ev.target.result); document.getElementById('q-count').innerText = questions.length; switchTab('list'); }; reader.readAsText(e.target.files[0]); }
     function cancelEdit() { resetForm(); updatePreview(); }
 
     document.getElementById('question-text').addEventListener('input', updatePreview);
-    document.getElementById('box-text').addEventListener('input', updatePreview);
+    document.getElementById('box-content').addEventListener('input', updatePreview);
     document.getElementById('short-answer').addEventListener('input', updatePreview);
     document.querySelectorAll('.opt').forEach(i => i.addEventListener('input', updatePreview));
     document.querySelectorAll('input[name="correct"]').forEach(i => i.addEventListener('change', updatePreview));
