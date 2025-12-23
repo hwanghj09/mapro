@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>문제 만들기 도구 - 태그 시스템</title>
+    <title>문제 만들기 도구 - 복사 기능 추가</title>
     <style>
         body { font-family: 'Pretendard', -apple-system, sans-serif; display: flex; margin: 0; height: 100vh; background: #f5f5f5; color: #333; }
         .editor { width: 50%; padding: 30px; overflow-y: auto; border-right: 2px solid #ddd; background: #fff; box-sizing: border-box; }
@@ -11,12 +11,10 @@
         .input-group { margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.9em; color: #555; }
         
-        /* 태그 스타일 입력창 */
         .tag-row { display: flex; gap: 8px; margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px; }
         .tag-input { flex: 1; border: none; border-bottom: 2px solid #ddd; background: transparent; padding: 5px; font-size: 0.9em; outline: none; transition: 0.3s; }
         .tag-input:focus { border-bottom-color: #4a90e2; }
         
-        /* 해시태그 디자인 */
         .hashtag { display: inline-block; background: #eef5ff; color: #4a90e2; padding: 4px 10px; border-radius: 15px; font-size: 0.85em; font-weight: bold; margin-right: 5px; margin-bottom: 10px; }
         .hashtag::before { content: "#"; }
 
@@ -33,7 +31,6 @@
         .action-btns { display: flex; gap: 10px; }
         .btn-secondary { background: #eee; color: #333; flex: 1; padding: 10px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; }
 
-        /* 미리보기 영역 */
         .preview-container { width: 50%; display: flex; flex-direction: column; background: #fafafa; }
         .tabs { display: flex; border-bottom: 1px solid #ddd; background: #fff; }
         .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; color: #999; }
@@ -45,8 +42,9 @@
         .box-preview { border: 1px solid #333; padding: 15px; margin: 15px 0; background: #fff; position: relative; white-space: pre-wrap; }
         .box-preview::before { content: "<보 기>"; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: white; padding: 0 10px; font-size: 0.9em; font-weight: bold; }
         .preview-img { max-width: 100%; margin: 15px 0; border-radius: 4px; }
-        .card-controls { position: absolute; top: 15px; right: 15px; display: flex; gap: 8px; }
-        .control-btn { cursor: pointer; background: #f0f0f0; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
+        .card-controls { position: absolute; top: 15px; right: 15px; display: flex; gap: 5px; }
+        .control-btn { cursor: pointer; background: #f0f0f0; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75em; color: #555; }
+        .control-btn:hover { background: #e0e0e0; }
     </style>
 </head>
 <body>
@@ -56,8 +54,8 @@
     
     <div class="tag-row">
         <input type="text" id="subject" class="tag-input" placeholder="과목명">
-        <input type="text" id="year" class="tag-input" placeholder="연도(예: 2024)">
-        <input type="text" id="month" class="tag-input" placeholder="월(예: 06)">
+        <input type="text" id="year" class="tag-input" placeholder="연도">
+        <input type="text" id="month" class="tag-input" placeholder="월">
         <input type="text" id="q-number" class="tag-input" placeholder="번호">
     </div>
 
@@ -141,7 +139,6 @@
     let currentMainType = 'multiple'; 
     let currentImage = "";
     let editingId = null;
-
     const fields = ['subject', 'year', 'month', 'q-number'];
 
     function setMainType(type) {
@@ -170,7 +167,6 @@
     }
 
     function updatePreview() {
-        // 태그 업데이트
         const pTags = document.getElementById('p-tags');
         pTags.innerHTML = '';
         fields.forEach(f => {
@@ -182,13 +178,13 @@
                 pTags.appendChild(span);
             }
         });
-
         document.getElementById('p-question').innerText = document.getElementById('question-text').value || "문제를 입력하세요.";
         const useBox = document.getElementById('use-box').checked;
-        const boxVal = document.getElementById('box-content').value;
         const pBox = document.getElementById('p-box');
-        if(currentMainType === 'multiple' && useBox && boxVal) { pBox.innerText = boxVal; pBox.style.display = 'block'; }
-        else { pBox.style.display = 'none'; }
+        if(currentMainType === 'multiple' && useBox && document.getElementById('box-content').value) {
+            pBox.innerText = document.getElementById('box-content').value;
+            pBox.style.display = 'block';
+        } else { pBox.style.display = 'none'; }
 
         if(currentMainType === 'multiple') {
             document.getElementById('p-options-area').style.display = 'block';
@@ -223,10 +219,60 @@
         }
     });
 
+    // 데이터를 폼에 채우는 공통 함수
+    function fillForm(q) {
+        document.getElementById('subject').value = q.tags.subject || '';
+        document.getElementById('year').value = q.tags.year || '';
+        document.getElementById('month').value = q.tags.month || '';
+        document.getElementById('q-number').value = q.tags.number || '';
+        setMainType(q.mainType);
+        document.getElementById('question-text').value = q.text;
+        document.getElementById('use-box').checked = q.useBox;
+        toggleBoxInput();
+        if(q.useBox) document.getElementById('box-content').value = q.boxContent;
+        currentImage = q.image;
+        if(q.image) {
+            document.getElementById('p-image').src = q.image;
+            document.getElementById('p-image').style.display = 'block';
+        } else {
+            document.getElementById('p-image').style.display = 'none';
+        }
+        if(q.mainType === 'multiple') {
+            q.options.forEach((val, i) => document.querySelectorAll('.opt')[i].value = val);
+            if(q.correct !== undefined) document.querySelectorAll('input[name="correct"]')[q.correct].checked = true;
+        } else {
+            document.getElementById('short-answer').value = q.answer || '';
+        }
+        updatePreview();
+    }
+
+    // 복사하기 기능 (데이터만 가져오고 editingId는 null로 유지)
+    function copyQuestion(id) {
+        const q = questions.find(item => item.id === id);
+        if(!q) return;
+        editingId = null; // 새 문제로 저장되게 함
+        document.getElementById('editor-title').innerText = "문제 복사 중 (새 문제로 저장됨)";
+        document.getElementById('btn-save').innerText = "+ 리스트에 추가하기";
+        document.getElementById('btn-cancel').style.display = "block";
+        fillForm(q);
+        switchTab('live');
+        alert("문제 내용을 가져왔습니다. 수정 후 추가 버튼을 눌러주세요.");
+    }
+
+    function editQuestion(id) {
+        const q = questions.find(item => item.id === id);
+        if(!q) return;
+        editingId = id;
+        document.getElementById('editor-title').innerText = "문제 수정 중";
+        document.getElementById('btn-save').innerText = "✅ 수정 완료";
+        document.getElementById('btn-cancel').style.display = "block";
+        fillForm(q);
+        switchTab('live');
+    }
+
     function saveQuestion() {
         const text = document.getElementById('question-text').value.trim();
         if(!text) return alert("문제를 입력하세요.");
-        
         let data = { 
             id: editingId || Date.now(), 
             mainType: currentMainType, 
@@ -240,7 +286,6 @@
                 number: document.getElementById('q-number').value
             }
         };
-
         if(data.useBox) data.boxContent = document.getElementById('box-content').value;
         if(currentMainType === 'multiple') {
             const opts = Array.from(document.querySelectorAll('.opt')).map(i => i.value.trim());
@@ -253,38 +298,10 @@
             if(!ans) return alert("정답을 입력하세요.");
             data.answer = ans;
         }
-
         if(editingId) { questions[questions.findIndex(q => q.id === editingId)] = data; }
         else { questions.push(data); }
         document.getElementById('q-count').innerText = questions.length;
         resetForm(); updatePreview(); switchTab('list');
-    }
-
-    function editQuestion(id) {
-        const q = questions.find(item => item.id === id);
-        editingId = id;
-        document.getElementById('editor-title').innerText = "문제 수정 중";
-        document.getElementById('btn-save').innerText = "✅ 수정 완료";
-        document.getElementById('btn-cancel').style.display = "block";
-        
-        // 태그 값 복원
-        document.getElementById('subject').value = q.tags.subject;
-        document.getElementById('year').value = q.tags.year;
-        document.getElementById('month').value = q.tags.month;
-        document.getElementById('q-number').value = q.tags.number;
-
-        setMainType(q.mainType);
-        document.getElementById('question-text').value = q.text;
-        document.getElementById('use-box').checked = q.useBox;
-        toggleBoxInput();
-        if(q.useBox) document.getElementById('box-content').value = q.boxContent;
-        currentImage = q.image;
-        if(q.image) { document.getElementById('p-image').src = q.image; document.getElementById('p-image').style.display = 'block'; }
-        if(q.mainType === 'multiple') {
-            q.options.forEach((val, i) => document.querySelectorAll('.opt')[i].value = val);
-            document.querySelectorAll('input[name="correct"]')[q.correct].checked = true;
-        } else { document.getElementById('short-answer').value = q.answer; }
-        updatePreview(); switchTab('live');
     }
 
     function resetForm() {
@@ -312,14 +329,14 @@
             const card = document.createElement('div');
             card.className = 'question-card';
             const tagHtml = Object.values(q.tags).filter(v => v).map(v => `<span class="hashtag">${v}</span>`).join('');
-            
             card.innerHTML = `
                 <div class="card-controls">
+                    <button class="control-btn" onclick="copyQuestion(${q.id})">복사</button>
                     <button class="control-btn" onclick="editQuestion(${q.id})">수정</button>
                     <button class="control-btn" style="color:red;" onclick="removeQuestion(${q.id})">삭제</button>
                 </div>
                 <div style="margin-bottom:10px;">${tagHtml}</div>
-                <div style="font-weight:bold; white-space:pre-wrap;">${q.text}</div>
+                <div style="font-weight:bold; white-space:pre-wrap;">${idx + 1}. ${q.text}</div>
                 ${q.useBox ? `<div class="box-preview">${q.boxContent}</div>` : ''}
                 ${q.image ? `<img src="${q.image}" class="preview-img">` : ''}
                 ${q.mainType === 'multiple' ? 
