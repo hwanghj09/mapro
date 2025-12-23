@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>문제 은행 제작 & 불러오기 도구</title>
+    <style>
+        :root { --primary: #4a90e2; --secondary: #f3f4f6; --success: #10b981; }
+        body { font-family: 'Pretendard', sans-serif; display: flex; margin: 0; height: 100vh; background: #e5e7eb; }
+        
+        /* 왼쪽 편집 영역 */
+        .editor { width: 40%; padding: 20px; overflow-y: auto; background: white; border-right: 1px solid #ccc; }
+        .input-box { background: var(--secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
+        
+        /* 오른쪽 리스트 영역 */
+        .display-area { width: 60%; padding: 20px; overflow-y: auto; }
+        .question-card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
+        .q-num { font-weight: bold; color: var(--primary); margin-bottom: 10px; display: block; }
+        .remove-btn { position: absolute; top: 15px; right: 15px; color: #ff4d4d; cursor: pointer; border: none; background: none; font-size: 20px; font-weight: bold; }
+
+        label { display: block; font-weight: bold; margin: 10px 0 5px; }
+        textarea, input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .row-group { display: flex; gap: 10px; }
+        button { flex: 1; padding: 12px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        
+        .btn-add { background: var(--primary); color: white; width: 100%; margin-top: 10px; }
+        .btn-json { background: var(--success); color: white; }
+        .btn-load { background: #6b7280; color: white; position: relative; }
+        .btn-print { background: #333; color: white; }
+        
+        .preview-img { max-width: 100%; max-height: 200px; display: block; margin: 10px 0; border-radius: 4px; }
+        
+        #file-loader { display: none; } /* 실제 파일 인풋은 숨김 */
+
+        @media print { .editor { display: none; } .display-area { width: 100%; } .remove-btn { display: none; } }
+    </style>
+</head>
+<body>
+
+<div class="editor">
+    <h2>문제 편집기</h2>
+    
+    <div class="input-box">
+        <label>문제 내용</label>
+        <textarea id="q-text" rows="3" placeholder="문제를 입력하세요..."></textarea>
+        
+        <label>이미지 첨부</label>
+        <input type="file" id="q-image" accept="image/*">
+        
+        <label>보기 및 정답 체크</label>
+        <div id="option-container">
+            <div class="option-row"><input type="radio" name="ans" value="0"> <span>1.</span><input type="text" class="opt-val"></div>
+            <div class="option-row"><input type="radio" name="ans" value="1"> <span>2.</span><input type="text" class="opt-val"></div>
+            <div class="option-row"><input type="radio" name="ans" value="2"> <span>3.</span><input type="text" class="opt-val"></div>
+            <div class="option-row"><input type="radio" name="ans" value="3"> <span>4.</span><input type="text" class="opt-val"></div>
+            <div class="option-row"><input type="radio" name="ans" value="4"> <span>5.</span><input type="text" class="opt-val"></div>
+        </div>
+        
+        <button class="btn-add" onclick="addQuestion()">+ 리스트에 문제 추가</button>
+    </div>
+
+    <div class="btn-group">
+        <div class="row-group">
+            <button class="btn-json" onclick="downloadAllJSON()">JSON 내보내기</button>
+            <button class="btn-load" onclick="document.getElementById('file-loader').click()">JSON 불러오기</button>
+        </div>
+        <button class="btn-print" onclick="window.print()">시험지 PDF 인쇄</button>
+    </div>
+    
+    <input type="file" id="file-loader" accept=".json" onchange="loadJSON(event)">
+</div>
+
+<div class="display-area" id="question-list">
+    <h2>문제 리스트 (총 <span id="q-count">0</span>문항)</h2>
+    </div>
+
+<script>
+    let questions = [];
+    let currentImageBase64 = "";
+
+    // 1. 이미지 처리 (Base64 변환)
+    document.getElementById('q-image').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => { currentImageBase64 = event.target.result; };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    // 2. 문제 추가
+    function addQuestion() {
+        const text = document.getElementById('q-text').value;
+        const opts = Array.from(document.querySelectorAll('.opt-val')).map(i => i.value).filter(v => v !== "");
+        const ans = document.querySelector('input[name="ans"]:checked')?.value;
+
+        if (!text) { alert("문제 내용을 입력해주세요!"); return; }
+
+        const newQuestion = {
+            id: Date.now() + Math.random(),
+            question: text,
+            image: currentImageBase64,
+            options: opts,
+            answer: ans !== undefined ? parseInt(ans) + 1 : null
+        };
+
+        questions.push(newQuestion);
+        renderQuestions();
+        resetForm();
+    }
+
+    // 3. 리스트 렌더링
+    function renderQuestions() {
+        const listDiv = document.getElementById('question-list');
+        const countSpan = document.getElementById('q-count');
+        
+        // 제목 유지하며 초기화
+        listDiv.innerHTML = `<h2>문제 리스트 (총 <span id="q-count">${questions.length}</span>문항)</h2>`;
+
+        questions.forEach((q, index) => {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            card.innerHTML = `
+                <button class="remove-btn" onclick="removeQuestion(${q.id})">&times;</button>
+                <span class="q-num">문항 ${index + 1}</span>
+                <div style="white-space: pre-wrap;">${q.question}</div>
+                ${q.image ? `<img src="${q.image}" class="preview-img">` : ''}
+                <ul style="list-style: none; padding: 0; margin-top: 15px;">
+                    ${q.options.map((o, i) => `
+                        <li style="margin-bottom:5px; ${q.answer === i+1 ? 'color:var(--primary); font-weight:bold;' : ''}">
+                            ${i+1}. ${o} ${q.answer === i+1 ? ' (정답)' : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            listDiv.appendChild(card);
+        });
+    }
+
+    // 4. 삭제 및 초기화
+    function removeQuestion(id) {
+        if(confirm("이 문제를 삭제하시겠습니까?")) {
+            questions = questions.filter(q => q.id !== id);
+            renderQuestions();
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('q-text').value = "";
+        document.getElementById('q-image').value = "";
+        document.querySelectorAll('.opt-val').forEach(i => i.value = "");
+        document.querySelectorAll('input[name="ans"]').forEach(r => r.checked = false);
+        currentImageBase64 = "";
+    }
+
+    // 5. JSON 내보내기 (저장)
+    function downloadAllJSON() {
+        if (questions.length === 0) return alert("저장할 문제가 없습니다.");
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 4));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", "my_question_bank.json");
+        dlAnchor.click();
+    }
+
+    // 6. JSON 불러오기 (Import)
+    function loadJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                if (Array.isArray(importedData)) {
+                    // 기존 리스트에 합칠지, 새로 바꿀지 선택 가능 (여기선 합침)
+                    if(confirm("기존 리스트에 불러온 문제를 추가할까요? ('취소'를 누르면 새로 교체합니다)")) {
+                        questions = [...questions, ...importedData];
+                    } else {
+                        questions = importedData;
+                    }
+                    renderQuestions();
+                } else {
+                    alert("올바른 JSON 형식이 아닙니다.");
+                }
+            } catch (err) {
+                alert("파일을 읽는 중 오류가 발생했습니다.");
+            }
+            event.target.value = ""; // 파일 선택 초기화
+        };
+        reader.readAsText(file);
+    }
+</script>
+
+</body>
+</html>
