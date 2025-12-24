@@ -92,7 +92,13 @@
         <label>문제 지문</label>
         <textarea id="question-text" rows="3" placeholder="문제를 입력하세요."></textarea>
     </div>
-
+    <div id="box-input-area" class="input-group" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="margin-bottom: 0;">보기 박스 내용</label>
+        <button class="btn-shuffle" onclick="shuffleBoxContent()">🔀 문항 순서 섞기</button>
+    </div>
+    <textarea id="box-content" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
+</div>
     <div id="box-input-area" class="input-group" style="display: none;">
         <label>보기 박스 내용 (ㄱ, ㄴ, ㄷ...)</label>
         <textarea id="box-content" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
@@ -307,6 +313,42 @@
         }
     });
 
+function shuffleBoxContent() {
+    const boxArea = document.getElementById('box-content');
+    const content = boxArea.value.trim();
+    if (!content) return;
+
+    // 1. 현재 입력된 첫 글자를 보고 기호 세트 결정
+    const firstChar = content.charAt(0);
+    let currentLabels = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ']; // 기본값
+
+    if (/[a-z]/.test(firstChar)) {
+        currentLabels = ['a', 'b', 'c', 'd', 'e'];
+    } else if (/[A-Z]/.test(firstChar)) {
+        currentLabels = ['A', 'B', 'C', 'D', 'E'];
+    } else if (/[1-9]/.test(firstChar)) {
+        currentLabels = ['1', '2', '3', '4', '5'];
+    }
+
+    // 2. 기호와 마침표(., ))를 떼고 순수 문장만 추출
+    // 정규식 설명: 줄 시작부분의 (한글/영문/숫자) + (마침표나 괄호) + 공백을 제거
+    let lines = content.split('\n')
+        .map(line => line.replace(/^[ㄱ-ㅎa-zA-Z0-9][\.\)]\s*/, "").trim())
+        .filter(line => line.length > 0);
+
+    if (lines.length < 2) return;
+
+    // 3. 문장들만 무작위로 섞기
+    for (let i = lines.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [lines[i], lines[j]] = [lines[j], lines[i]];
+    }
+
+    // 4. 감지했던 기호 체계를 다시 입혀서 출력
+    boxArea.value = lines.map((line, idx) => `${currentLabels[idx]}. ${line}`).join('\n');
+    
+    updatePreview();
+}
     function fillForm(q) {
         document.getElementById('subject').value = q.tags.subject || '';
         document.getElementById('year').value = q.tags.year || '';
