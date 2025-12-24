@@ -318,34 +318,45 @@ function shuffleBoxContent() {
     const content = boxArea.value.trim();
     if (!content) return;
 
-    // 1. 현재 입력된 첫 글자를 보고 기호 세트 결정
-    const firstChar = content.charAt(0);
-    let currentLabels = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ']; // 기본값
+    const linesOriginal = content.split('\n').filter(l => l.trim().length > 0);
+    
+    // 1. 기호 체계 감지 (첫 줄이 기호로 시작하는지 확인)
+    const firstLine = linesOriginal[0];
+    const labelMatch = firstLine.match(/^([ㄱ-ㅎa-zA-Z0-9])[\.\)]/);
+    
+    let linesToShuffle = [];
+    let currentLabels = null;
 
-    if (/[a-z]/.test(firstChar)) {
-        currentLabels = ['a', 'b', 'c', 'd', 'e'];
-    } else if (/[A-Z]/.test(firstChar)) {
-        currentLabels = ['A', 'B', 'C', 'D', 'E'];
-    } else if (/[1-9]/.test(firstChar)) {
-        currentLabels = ['1', '2', '3', '4', '5'];
+    if (labelMatch) {
+        // [케이스 A] 기호가 있는 경우: 기호 떼고 내용만 추출
+        const firstChar = labelMatch[1];
+        
+        // 기호 세트 결정
+        if (/[ㄱ-ㅎ]/.test(firstChar)) currentLabels = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ'];
+        else if (/[a-z]/.test(firstChar)) currentLabels = ['a', 'b', 'c', 'd', 'e', 'f'];
+        else if (/[A-Z]/.test(firstChar)) currentLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
+        else if (/[0-9]/.test(firstChar)) currentLabels = ['1', '2', '3', '4', '5', '6'];
+
+        linesToShuffle = linesOriginal.map(line => line.replace(/^[ㄱ-ㅎa-zA-Z0-9][\.\)]\s*/, "").trim());
+    } else {
+        // [케이스 B] 기호가 없는 줄글인 경우: 줄 단위로 전체 추출
+        linesToShuffle = linesOriginal.map(line => line.trim());
     }
 
-    // 2. 기호와 마침표(., ))를 떼고 순수 문장만 추출
-    // 정규식 설명: 줄 시작부분의 (한글/영문/숫자) + (마침표나 괄호) + 공백을 제거
-    let lines = content.split('\n')
-        .map(line => line.replace(/^[ㄱ-ㅎa-zA-Z0-9][\.\)]\s*/, "").trim())
-        .filter(line => line.length > 0);
-
-    if (lines.length < 2) return;
-
-    // 3. 문장들만 무작위로 섞기
-    for (let i = lines.length - 1; i > 0; i--) {
+    // 2. 섞기 (Fisher-Yates)
+    for (let i = linesToShuffle.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [lines[i], lines[j]] = [lines[j], lines[i]];
+        [linesToShuffle[i], linesToShuffle[j]] = [linesToShuffle[j], linesToShuffle[i]];
     }
 
-    // 4. 감지했던 기호 체계를 다시 입혀서 출력
-    boxArea.value = lines.map((line, idx) => `${currentLabels[idx]}. ${line}`).join('\n');
+    // 3. 재조합
+    if (currentLabels) {
+        // 기호가 있었던 경우 다시 기호를 붙여줌
+        boxArea.value = linesToShuffle.map((line, idx) => `${currentLabels[idx]}. ${line}`).join('\n');
+    } else {
+        // 줄글이었던 경우 섞인 문장들만 다시 합침
+        boxArea.value = linesToShuffle.join('\n');
+    }
     
     updatePreview();
 }
