@@ -19,7 +19,7 @@
         .hashtag::before { content: "#"; }
 
         .search-container { padding: 15px; background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 10; }
-        .search-bar { width: 100%; padding: 10px 15px; border: 2px solid #4a90e2; border-radius: 25px; outline: none; font-size: 0.9em; box-sizing: border-box; }
+        .search-bar { width: 100%; padding: 10px 15px; outline: none; font-size: 0.9em; box-sizing: border-box; }
 
         .type-selector { display: flex; gap: 8px; margin-bottom: 15px; }
         .type-btn { flex: 1; padding: 12px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
@@ -43,11 +43,52 @@
         .btn-secondary { background: #eee; color: #333; flex: 1; padding: 10px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; }
 
         .preview-container { width: 50%; display: flex; flex-direction: column; background: #fafafa; }
-        .tabs { display: flex; border-bottom: 1px solid #ddd; background: #fff; }
-        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; color: #999; }
-        .tab.active { color: #4a90e2; border-bottom: 3px solid #4a90e2; background: #fff; }
-        .tab-content { flex: 1; overflow-y: auto; display: none; }
-        .tab-content.active { display: block; }
+       /* 탭 컨테이너 */
+.tabs { 
+    display: flex; 
+    border-bottom: 1px solid #ddd; 
+    background: #fff; 
+    position: relative; 
+}
+
+.tab { 
+    flex: 1; 
+    padding: 15px; 
+    text-align: center; 
+    cursor: pointer; 
+    font-weight: bold; 
+    color: #999; 
+    transition: color 0.3s ease;
+    z-index: 1; /* 인디케이터보다 위에 오도록 */
+}
+
+.tab.active { 
+    color: #4a90e2; 
+}
+
+/* 움직이는 파란색 밑줄 */
+.tab-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 50%; /* 탭이 2개일 때 기준 */
+    background-color: #4a90e2;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 부드러운 가속도 */
+    z-index: 2;
+}
+
+/* 컨텐츠 페이드 효과 */
+.tab-content { 
+    display: none; 
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.tab-content.active { 
+    display: block; 
+    opacity: 1;
+}
         .content-padding { padding: 30px; }
 
         .question-card { background: white; padding: 35px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; margin-bottom: 20px; }
@@ -202,6 +243,7 @@
     <div class="tabs">
         <div id="t-live" class="tab active" onclick="switchTab('live')">실시간 미리보기</div>
         <div id="t-list" class="tab" onclick="switchTab('list')">전체 리스트 (<span id="q-count">0</span>)</div>
+        <div class="tab-indicator" id="indicator"></div>
     </div>
 
     <div id="tab-live" class="tab-content active">
@@ -221,11 +263,13 @@
     </div>
 
     <div id="tab-list" class="tab-content">
-        <div class="search-container">
-            <input type="text" id="search-input" class="search-bar" placeholder="과목, 연도, 내용, 메모 검색..." oninput="renderList()">
-        </div>
-        <div id="question-list" class="content-padding"></div>
+    <div class="search-bar" style="margin-bottom:20px; display:flex; gap:10px;">
+        <input type="text" id="search-input" placeholder="문제 내용, 과목, 연도 검색..." 
+               onkeyup="filterQuestions()" style="flex:1; padding:8px;">
     </div>
+    <div id="question-list">
+        </div>
+</div>
 </div>
 
 <script>
@@ -416,6 +460,7 @@
             mainType: currentMainType,
             useBox: useBox, boxType: boxType, text: text,
             smartBoxData: smartData, image: currentImage,
+            image: currentImage,
             memo: document.getElementById('teacher-memo').value,
             tags: {
                 subject: document.getElementById('subject').value,
@@ -631,26 +676,109 @@ function deleteRow(btn) {
     }
 }
 
-    function renderList() {
-        const container = document.getElementById('question-list');
-        container.innerHTML = questions.length === 0 ? '<p>결과 없음</p>' : '';
-        questions.forEach(q => {
-            const card = document.createElement('div');
-            card.className = 'question-card';
-            const ansLabel = q.mainType === 'multiple' ? (['①','②','③','④','⑤'][q.correct] || '미정') : q.answer;
-            card.innerHTML = `
-                <div class="card-controls">
-                    <button onclick="copyQuestion(${q.id})">복사</button>
-                    <button onclick="editQuestion(${q.id})">수정</button>
-                    <button style="color:red;" onclick="removeQuestion(${q.id})">삭제</button>
-                </div>
-                <strong>${q.text}</strong>
-                <div style="font-size:0.8em; color:blue;">정답: ${ansLabel}</div>
-            `;
-            container.appendChild(card);
-        });
-        document.getElementById('q-count').innerText = questions.length;
-    }
+    // 1. 검색 기능 (전역 변수로 관리)
+function filterQuestions() {
+    const searchTerm = document.getElementById('search-input')?.value.toLowerCase() || "";
+    renderList(searchTerm);
+}
+
+// 2. 리스트 렌더링 함수 (강화 버전)
+function renderList(searchTerm = "") {
+    const container = document.getElementById('question-list');
+    if (!container) return;
+
+    // 검색어 필터링 로직
+    const filtered = questions.filter(q => {
+        const textMatch = q.text.toLowerCase().includes(searchTerm);
+        const subjectMatch = q.tags.subject.toLowerCase().includes(searchTerm);
+        const yearMatch = q.tags.year.includes(searchTerm);
+        const memoMatch = q.memo.toLowerCase().includes(searchTerm);
+        return textMatch || subjectMatch || yearMatch || memoMatch;
+    });
+
+    container.innerHTML = filtered.length === 0 ? '<p style="padding:20px; text-align:center; color:#999;">검색 결과가 없거나 등록된 문제가 없습니다.</p>' : '';
+
+    filtered.forEach((q, index) => {
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        card.style = "border:1px solid #ddd; padding:15px; margin-bottom:20px; border-radius:8px; background:#fff; position:relative;";
+
+        // 정답 텍스트 가공
+        const ansLabel = q.mainType === 'multiple' 
+            ? (['①','②','③','④','⑤'][q.correct] || '미체크') 
+            : q.answer;
+
+        // 보기(Box) 내용 가공
+        let boxHTML = "";
+        if (q.useBox && q.smartBoxData) {
+            let boxContent = "";
+            if (q.boxType === 'items') {
+                try {
+                    const items = JSON.parse(q.smartBoxData);
+                    boxContent = items.map((it, i) => `${labels[i]}. ${it.text}`).join('<br>');
+                } catch(e) { boxContent = "데이터 오류"; }
+            } else {
+                boxContent = q.smartBoxData.replace(/\n/g, '<br>');
+            }
+            boxHTML = `<div style="background:#f9f9f9; border:1px solid #eee; padding:10px; margin:10px 0; font-size:0.9em;">${boxContent}</div>`;
+        }
+
+                // 이미지 HTML
+                // [수정된 부분] 이미지 유무를 체크하여 HTML 생성
+        let imgHTML = "";
+        if (q.image && q.image.startsWith("data:image")) { 
+            // 데이터가 유효한 base64 이미지인 경우에만 출력
+            imgHTML = `
+                <div class="list-image-container" style="margin: 10px 0;">
+                    <img src="${q.image}" 
+                        style="max-width: 100%; max-height: 250px; border: 1px solid #ddd; border-radius: 4px; display: block;" 
+                        alt="문제 이미지"
+                        onerror="this.style.display='none';"> 
+                </div>`;
+        } else if (q.image) {
+            // 일반 URL 형태일 경우
+            imgHTML = `<div style="margin: 10px 0;"><img src="${q.image}" style="max-width: 100%; max-height: 250px;"></div>`;
+        }
+
+        // 객관식 선지 1~5번 표시
+        let optionsHTML = "";
+        if (q.mainType === 'multiple' && q.options) {
+            optionsHTML = '<div style="margin:10px 0; font-size:0.9em; color:#555;">';
+            q.options.forEach((opt, i) => {
+                if(opt) {
+                    const isCorrect = (i === q.correct);
+                    optionsHTML += `<div style="${isCorrect ? 'color:red; font-weight:bold;' : ''}">
+                        ${['①','②','③','④','⑤'][i]} ${opt} ${isCorrect ? '✓' : ''}
+                    </div>`;
+                }
+            });
+            optionsHTML += '</div>';
+        }
+
+        // 카드 내부 구조 조립
+        card.innerHTML = `
+            <div class="card-controls" style="position:absolute; top:10px; right:10px;">
+                <button onclick="copyQuestion(${q.id})" style="padding:2px 8px;">복사</button>
+                <button onclick="editQuestion(${q.id})" style="padding:2px 8px;">수정</button>
+                <button onclick="removeQuestion(${q.id})" style="color:red; padding:2px 8px;">삭제</button>
+            </div>
+            <div style="color:#888; font-size:0.8em; margin-bottom:5px;">
+                #${q.tags.subject} #${q.tags.year}년 #${q.tags.month}월 #${q.tags.number}번
+            </div>
+            <div style="font-size:1.1em; font-weight:bold; margin-bottom:10px;">${q.text}</div>
+            ${imgHTML}
+            ${boxHTML}
+            ${optionsHTML}
+            <div style="margin-top:10px; padding-top:10px; border-top:1px dashed #eee;">
+                <span style="background:#eef; color:#33a; padding:2px 6px; border-radius:4px; font-weight:bold;">정답: ${ansLabel}</span>
+            </div>
+            ${q.memo ? `<div style="margin-top:8px; font-size:0.85em; color:#666; font-style:italic;">메모: ${q.memo}</div>` : ""}
+        `;
+        container.appendChild(card);
+    });
+
+    document.getElementById('q-count').innerText = filtered.length;
+}
 
     function removeQuestion(id) { if(confirm("삭제할까요?")) { questions = questions.filter(q => q.id !== id); renderList(); } }
     function downloadJSON() { 
@@ -672,12 +800,41 @@ function deleteRow(btn) {
         }
     });
 
-    function switchTab(tab) {
-        document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
-        document.getElementById('t-' + tab).classList.add('active');
-        document.getElementById('tab-' + tab).classList.add('active');
-        if(tab === 'list') renderList();
+function switchTab(tab) {
+    const tabs = document.querySelectorAll('.tab');
+    const contents = document.querySelectorAll('.tab-content');
+    const indicator = document.getElementById('indicator');
+
+    // 1. 모든 클래스 초기화
+    tabs.forEach(el => el.classList.remove('active'));
+    contents.forEach(el => {
+        el.classList.remove('active');
+        el.style.display = 'none';
+    });
+
+    // 2. 인디케이터 위치 계산 (탭이 2개인 경우)
+    if (tab === 'live') {
+        indicator.style.transform = 'translateX(0%)';
+    } else if (tab === 'list') {
+        indicator.style.transform = 'translateX(100%)'; // 50% 너비만큼 옆으로 이동
     }
+
+    // 3. 선택된 요소 활성화
+    const selectedTabBtn = document.getElementById('t-' + tab);
+    const selectedContent = document.getElementById('tab-' + tab);
+
+    if (selectedTabBtn && selectedContent) {
+        selectedTabBtn.classList.add('active');
+        selectedContent.style.display = 'block';
+        setTimeout(() => {
+            selectedContent.classList.add('active');
+        }, 10);
+    }
+
+    if (tab === 'list') {
+        renderList();
+    }
+}
     
     document.addEventListener('input', updatePreview);
 </script>
