@@ -61,6 +61,18 @@
         .preview-exp { font-size: 0.85em; color: #666; margin-left: 20px; margin-top: 2px; display: block; background: #f1f1f1; padding: 4px 8px; border-radius: 4px; width: fit-content; }
         .preview-memo { margin-top: 20px; padding: 15px; background: #fffbe6; border-left: 4px solid #ffd700; font-size: 0.9em; color: #555; white-space: pre-wrap; }
         .preview-memo strong { display: block; margin-bottom: 5px; color: #d4a017; }
+        /* 선택형 보기(ㄱ,ㄴ,ㄷ) 입력 행 스타일 */
+        .item-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; background: #fff; padding: 8px; border: 1px solid #eee; border-radius: 6px; }
+        .item-label { font-weight: bold; color: #4a90e2; width: 25px; text-align: center; }
+        .item-input { flex: 2; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95em; }
+        .item-alt { flex: 1; padding: 8px; border: 1px dashed #ccc; border-radius: 4px; font-size: 0.9em; background: #fdfdfd; }
+        .btn-ox { width: 40px; height: 35px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-ox.is-o { background: #e3f2fd; color: #1976d2; border: 1px solid #1976d2; }
+        .btn-ox.is-x { background: #ffebee; color: #c62828; border: 1px solid #c62828; }
+        .btn-del-row { background: #eee; color: #666; border: none; padding: 0 10px; height: 35px; border-radius: 4px; cursor: pointer; }
+        .btn-del-row:hover { background: #ddd; color: #333; }
+        .btn-add-row { width: 100%; padding: 10px; background: #f1f3f5; border: 1px dashed #ccc; color: #555; cursor: pointer; font-weight: bold; border-radius: 6px; margin-top: 5px; }
+        .btn-add-row:hover { background: #e9ecef; }
     </style>
 </head>
 <body>
@@ -92,17 +104,33 @@
         <label>문제 지문</label>
         <textarea id="question-text" rows="3" placeholder="문제를 입력하세요."></textarea>
     </div>
-    <div id="box-input-area" class="input-group" style="display: none;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <label style="margin-bottom: 0;">보기 박스 내용</label>
-        <button class="btn-shuffle" onclick="shuffleBoxContent()">🔀 문항 순서 섞기</button>
+    <div id="box-input-area" class="input-group" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <label style="margin-bottom: 0;">보기 박스 유형</label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <label style="font-weight: normal; cursor: pointer;">
+                <input type="radio" name="boxType" value="text" checked onchange="toggleBoxMode()"> 📄 줄글(지문)
+            </label>
+            <label style="font-weight: normal; cursor: pointer;">
+                <input type="radio" name="boxType" value="items" onchange="toggleBoxMode()"> ☑️ 선택형(ㄱ,ㄴ,ㄷ)
+            </label>
+        </div>
     </div>
-    <textarea id="box-content" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
+
+    <div id="mode-text">
+        <textarea id="box-content-text" rows="6" placeholder="지문이나 참고 자료 내용을 자유롭게 입력하세요." oninput="updatePreview()"></textarea>
+    </div>
+
+    <div id="mode-items" style="display: none;">
+        <div style="text-align: right; margin-bottom: 10px;">
+             <button class="btn-shuffle" onclick="shuffleAndSyncAnswer()">🎲 셔플 & 선지 자동구성</button>
+        </div>
+        
+        <div id="items-container"></div>
+        
+        <button class="btn-add-row" onclick="addItemRow()">+ 보기 항목 추가하기</button>
+    </div>
 </div>
-    <div id="box-input-area" class="input-group" style="display: none;">
-        <label>보기 박스 내용 (ㄱ, ㄴ, ㄷ...)</label>
-        <textarea id="box-content" rows="4" placeholder="ㄱ. 내용&#10;ㄴ. 내용"></textarea>
-    </div>
 
     <div class="input-group">
         <label>이미지 업로드 (선택)</label>
@@ -206,7 +234,9 @@
     let currentImage = "";
     let editingId = null;
     const fields = ['subject', 'year', 'month', 'q-number'];
+    const labels = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ',' ㅅ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
 
+    // 1. 초기화 및 모드 설정
     function setMainType(type) {
         currentMainType = type;
         document.getElementById('btn-multiple').classList.toggle('active', type === 'multiple');
@@ -214,217 +244,179 @@
         document.getElementById('box-option-toggle').style.display = (type === 'multiple' ? 'block' : 'none');
         document.getElementById('options-area').style.display = (type === 'multiple' ? 'block' : 'none');
         document.getElementById('short-input-area').style.display = (type === 'short' ? 'block' : 'none');
-        if(type === 'short') { document.getElementById('use-box').checked = false; toggleBoxInput(); }
+        if(type === 'short') { 
+            document.getElementById('use-box').checked = false; 
+            toggleBoxInput(); 
+        }
         updatePreview();
     }
 
     function toggleBoxInput() {
         const useBox = document.getElementById('use-box').checked;
-        document.getElementById('box-input-area').style.display = useBox ? 'block' : 'none';
+        const area = document.getElementById('box-input-area');
+        if(area) area.style.display = useBox ? 'block' : 'none';
+        if(useBox) toggleBoxMode();
         updatePreview();
     }
 
-    function switchTab(tab) {
-        document.getElementById('t-live').classList.toggle('active', tab === 'live');
-        document.getElementById('t-list').classList.toggle('active', tab === 'list');
-        document.getElementById('tab-live').classList.toggle('active', tab === 'live');
-        document.getElementById('tab-list').classList.toggle('active', tab === 'list');
-        if(tab==='list') renderList();
-    }
-
-    function updatePreview() {
-        // 태그
-        const pTags = document.getElementById('p-tags');
-        pTags.innerHTML = '';
-        fields.forEach(f => {
-            const val = document.getElementById(f).value;
-            if(val) {
-                const span = document.createElement('span');
-                span.className = 'hashtag';
-                span.innerText = val;
-                pTags.appendChild(span);
+    function toggleBoxMode() {
+        const boxType = document.querySelector('input[name="boxType"]:checked')?.value || 'text';
+        const modeText = document.getElementById('mode-text');
+        const modeItems = document.getElementById('mode-items');
+        
+        if (boxType === 'items') {
+            modeText.style.display = 'none';
+            modeItems.style.display = 'block';
+            if(document.getElementById('items-container').children.length === 0) {
+                addItemRow(); addItemRow(); addItemRow();
             }
-        });
-        
-        document.getElementById('p-question').innerText = document.getElementById('question-text').value || "문제를 입력하세요.";
-        
-        // 박스
-        const useBox = document.getElementById('use-box').checked;
-        const pBox = document.getElementById('p-box');
-        if(currentMainType === 'multiple' && useBox && document.getElementById('box-content').value) {
-            pBox.innerText = document.getElementById('box-content').value;
-            pBox.style.display = 'block';
-        } else { pBox.style.display = 'none'; }
-
-        // 옵션 및 해설
-        if(currentMainType === 'multiple') {
-            document.getElementById('p-options-area').style.display = 'block';
-            document.getElementById('p-short-area').style.display = 'none';
-            const pOptions = document.getElementById('p-options');
-            const correctIdx = Array.from(document.querySelectorAll('input[name="correct"]')).find(r => r.checked)?.value;
-            
-            pOptions.innerHTML = '';
-            const opts = document.querySelectorAll('.opt');
-            const exps = document.querySelectorAll('.opt-exp');
-            
-            opts.forEach((input, i) => {
-                const li = document.createElement('li');
-                li.style.marginBottom = '10px';
-                
-                let optText = input.value || '선택지 ' + (i+1);
-                let expText = exps[i].value; // 해설 텍스트 가져오기
-
-                let html = `<div style="${correctIdx == i ? 'color:#4a90e2; font-weight:bold;' : ''}">${['①','②','③','④','⑤'][i]} ${optText}</div>`;
-                
-                if(expText) {
-                    html += `<span class="preview-exp">└ ${expText}</span>`;
-                }
-                
-                li.innerHTML = html;
-                pOptions.appendChild(li);
-            });
         } else {
-            document.getElementById('p-options-area').style.display = 'none';
-            document.getElementById('p-short-area').style.display = 'block';
-            document.getElementById('p-short-ans').innerText = document.getElementById('short-answer').value || "미입력";
+            modeText.style.display = 'block';
+            modeItems.style.display = 'none';
         }
-
-        // 메모
-        const memoVal = document.getElementById('teacher-memo').value;
-        const pMemo = document.getElementById('p-memo');
-        if(memoVal) {
-            pMemo.innerHTML = `<strong>📝 선생님 메모</strong>${memoVal}`;
-            pMemo.style.display = "block";
-        } else {
-            pMemo.style.display = "none";
-        }
+        updatePreview();
     }
 
-    document.getElementById('image-input').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                currentImage = ev.target.result;
-                document.getElementById('p-image').src = currentImage;
-                document.getElementById('p-image').style.display = 'block';
-            };
-            reader.readAsDataURL(file);
+    // 2. 항목(Row) 관리 및 O/X
+    function addItemRow(data = {text: '', alt: '', isCorrect: true}) {
+        const container = document.getElementById('items-container');
+        const idx = container.children.length;
+        if(idx >= labels.length) return alert("더 이상 보기를 추가할 수 없습니다.");
+
+        const row = document.createElement('div');
+        row.className = 'item-row';
+        row.innerHTML = `
+            <span class="item-label">${labels[idx]}</span>
+            <input type="text" class="item-input main-text" placeholder="내용 입력" value="${data.text || ''}" oninput="updatePreview()">
+            <input type="text" class="item-input alt-text item-alt" placeholder="변형 문구(선택)" value="${data.alt || ''}">
+            <button class="btn-ox ${data.isCorrect ? 'is-o' : 'is-x'}" onclick="toggleOX(this)">${data.isCorrect ? 'O' : 'X'}</button>
+            <button class="btn-del-row" onclick="deleteRow(this)">✕</button>
+        `;
+        container.appendChild(row);
+        updatePreview();
+    }
+
+    function deleteRow(btn) {
+        btn.closest('.item-row').remove();
+        document.querySelectorAll('.item-row').forEach((r, i) => {
+            r.querySelector('.item-label').innerText = labels[i];
+        });
+        updatePreview();
+    }
+
+    function toggleOX(btn) {
+        const isO = btn.innerText === 'O';
+        btn.innerText = isO ? 'X' : 'O';
+        btn.className = `btn-ox ${isO ? 'is-x' : 'is-o'}`;
+        updatePreview();
+    }
+
+    function shuffleAndSyncAnswer() {
+    // 1. 현재 입력된 데이터 수집
+    const rows = Array.from(document.querySelectorAll('.item-row'));
+    let items = rows.map(row => ({
+        original: row.querySelector('.main-text').value.trim(),
+        alt: row.querySelector('.alt-text').value.trim(),
+        isCorrect: row.querySelector('.btn-ox').classList.contains('is-o')
+    })).filter(it => it.original);
+
+    if(items.length < 1) return alert("내용을 입력해주세요.");
+
+    // 2. 내용만 랜덤하게 섞기
+    items = items.sort(() => Math.random() - 0.5);
+
+    // 3. 화면 UI 재구성 (기호 ㄱ, ㄴ, ㄷ 순차 부여)
+    const container = document.getElementById('items-container');
+    container.innerHTML = ''; 
+
+    const processedItems = items.map((it, idx) => {
+        const chosenText = (Math.random() > 0.5 && it.alt) ? it.alt : it.original;
+        
+        addItemRow({
+            text: chosenText,
+            alt: (chosenText === it.original) ? it.alt : it.original,
+            isCorrect: it.isCorrect
+        });
+
+        return { text: chosenText, isCorrect: it.isCorrect, label: labels[idx] };
+    });
+
+    // 4. 정답 조합 계산 (ㄱ, ㄴ, ㄷ 순 정렬)
+    const correctLabels = processedItems
+        .filter(it => it.isCorrect)
+        .map(it => it.label)
+        .sort((a, b) => labels.indexOf(a) - labels.indexOf(b));
+    
+    const correctStr = correctLabels.length > 0 ? correctLabels.join(', ') : "정답 없음";
+
+    // 5. 선지 후보군 생성 (정답 포함 총 5개)
+    const availableLabels = labels.slice(0, processedItems.length);
+    let comboSet = new Set();
+    comboSet.add(correctStr); 
+    
+    let attempts = 0;
+    while(comboSet.size < 5 && attempts < 200) {
+        let count = Math.floor(Math.random() * availableLabels.length) + 1;
+        let randomCombo = [...availableLabels]
+            .sort(() => Math.random() - 0.5)
+            .slice(0, count)
+            .sort((a, b) => labels.indexOf(a) - labels.indexOf(b))
+            .join(', ');
+            
+        if(randomCombo) comboSet.add(randomCombo);
+        attempts++;
+    }
+    
+    // 6. [수정됨] 정렬 로직 삭제 -> 랜덤하게 섞어서 배치
+    // Set을 배열로 바꾼 뒤 무작위로 섞음으로써 정답 위치를 랜덤화합니다.
+    let finalOptions = Array.from(comboSet).sort(() => Math.random() - 0.5);
+    
+    const optionInputs = document.querySelectorAll('.opt');
+    const radios = document.querySelectorAll('input[name="correct"]');
+    
+    // 선지 칸 초기화
+    optionInputs.forEach(input => input.value = "");
+    radios.forEach(r => r.checked = false);
+
+    finalOptions.forEach((optText, idx) => {
+        if(idx < 5) {
+            optionInputs[idx].value = optText;
+            // 현재 들어가는 텍스트가 정답과 일치하면 라디오 버튼 체크
+            if(optText === correctStr) radios[idx].checked = true;
         }
     });
 
-function shuffleBoxContent() {
-    const boxArea = document.getElementById('box-content');
-    const content = boxArea.value.trim();
-    if (!content) return;
-
-    const linesOriginal = content.split('\n').filter(l => l.trim().length > 0);
-    
-    // 1. 기호 체계 감지 (첫 줄이 기호로 시작하는지 확인)
-    const firstLine = linesOriginal[0];
-    const labelMatch = firstLine.match(/^([ㄱ-ㅎa-zA-Z0-9])[\.\)]/);
-    
-    let linesToShuffle = [];
-    let currentLabels = null;
-
-    if (labelMatch) {
-        // [케이스 A] 기호가 있는 경우: 기호 떼고 내용만 추출
-        const firstChar = labelMatch[1];
-        
-        // 기호 세트 결정
-        if (/[ㄱ-ㅎ]/.test(firstChar)) currentLabels = ['ㄱ', 'ㄴ', 'ㄷ', 'ㄹ', 'ㅁ', 'ㅂ'];
-        else if (/[a-z]/.test(firstChar)) currentLabels = ['a', 'b', 'c', 'd', 'e', 'f'];
-        else if (/[A-Z]/.test(firstChar)) currentLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
-        else if (/[0-9]/.test(firstChar)) currentLabels = ['1', '2', '3', '4', '5', '6'];
-
-        linesToShuffle = linesOriginal.map(line => line.replace(/^[ㄱ-ㅎa-zA-Z0-9][\.\)]\s*/, "").trim());
-    } else {
-        // [케이스 B] 기호가 없는 줄글인 경우: 줄 단위로 전체 추출
-        linesToShuffle = linesOriginal.map(line => line.trim());
-    }
-
-    // 2. 섞기 (Fisher-Yates)
-    for (let i = linesToShuffle.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [linesToShuffle[i], linesToShuffle[j]] = [linesToShuffle[j], linesToShuffle[i]];
-    }
-
-    // 3. 재조합
-    if (currentLabels) {
-        // 기호가 있었던 경우 다시 기호를 붙여줌
-        boxArea.value = linesToShuffle.map((line, idx) => `${currentLabels[idx]}. ${line}`).join('\n');
-    } else {
-        // 줄글이었던 경우 섞인 문장들만 다시 합침
-        boxArea.value = linesToShuffle.join('\n');
-    }
-    
     updatePreview();
 }
-    function fillForm(q) {
-        document.getElementById('subject').value = q.tags.subject || '';
-        document.getElementById('year').value = q.tags.year || '';
-        document.getElementById('month').value = q.tags.month || '';
-        document.getElementById('q-number').value = q.tags.number || '';
-        setMainType(q.mainType);
-        document.getElementById('question-text').value = q.text;
-        document.getElementById('use-box').checked = q.useBox;
-        toggleBoxInput();
-        if(q.useBox) document.getElementById('box-content').value = q.boxContent;
-        currentImage = q.image;
-        if(q.image) {
-            document.getElementById('p-image').src = q.image;
-            document.getElementById('p-image').style.display = 'block';
-        } else { document.getElementById('p-image').style.display = 'none'; }
-        
-        // 옵션 및 개별 해설 복구
-        if(q.mainType === 'multiple') {
-            q.options.forEach((val, i) => document.querySelectorAll('.opt')[i].value = val);
-            // 해설 데이터가 있으면 복구, 없으면 빈값
-            const expList = q.optionExplanations || ["","","","",""];
-            expList.forEach((val, i) => document.querySelectorAll('.opt-exp')[i].value = val);
 
-            if(q.correct !== undefined) document.querySelectorAll('input[name="correct"]')[q.correct].checked = true;
-        } else { document.getElementById('short-answer').value = q.answer || ''; }
-
-        // 메모 복구
-        document.getElementById('teacher-memo').value = q.memo || '';
-
-        updatePreview();
-    }
-
-    function copyQuestion(id) {
-        const q = questions.find(item => item.id === id);
-        if(!q) return;
-        editingId = null;
-        document.getElementById('editor-title').innerText = "문제 복사 중 (새 문제로 저장됨)";
-        document.getElementById('btn-save').innerText = "+ 리스트에 추가하기";
-        document.getElementById('btn-cancel').style.display = "block";
-        fillForm(q);
-        switchTab('live');
-    }
-
-    function editQuestion(id) {
-        const q = questions.find(item => item.id === id);
-        if(!q) return;
-        editingId = id;
-        document.getElementById('editor-title').innerText = "문제 수정 중";
-        document.getElementById('btn-save').innerText = "✅ 수정 완료";
-        document.getElementById('btn-cancel').style.display = "block";
-        fillForm(q);
-        switchTab('live');
-    }
-
+    // 4. 저장 / 수정 / 복사
     function saveQuestion() {
         const text = document.getElementById('question-text').value.trim();
-        if(!text) return alert("문제를 입력하세요.");
-        
-        let data = { 
-            id: editingId || Date.now(), 
-            mainType: currentMainType, 
-            useBox: document.getElementById('use-box').checked, 
-            text: text, 
-            image: currentImage,
-            memo: document.getElementById('teacher-memo').value, // 메모 저장
+        if (!text) return alert("문제를 입력하세요.");
+
+        const useBox = document.getElementById('use-box').checked;
+        const boxType = document.querySelector('input[name="boxType"]:checked')?.value || 'text';
+        let smartData = "";
+
+        if (useBox) {
+            if (boxType === 'text') {
+                smartData = document.getElementById('box-content-text').value;
+            } else {
+                const rows = Array.from(document.querySelectorAll('.item-row'));
+                smartData = JSON.stringify(rows.map(row => ({
+                    text: row.querySelector('.main-text').value,
+                    alt: row.querySelector('.alt-text').value,
+                    isCorrect: row.querySelector('.btn-ox').innerText === 'O'
+                })));
+            }
+        }
+
+        let data = {
+            id: editingId || Date.now(),
+            mainType: currentMainType,
+            useBox: useBox, boxType: boxType, text: text,
+            smartBoxData: smartData, image: currentImage,
+            memo: document.getElementById('teacher-memo').value,
             tags: {
                 subject: document.getElementById('subject').value,
                 year: document.getElementById('year').value,
@@ -433,31 +425,78 @@ function shuffleBoxContent() {
             }
         };
 
-        if(data.useBox) data.boxContent = document.getElementById('box-content').value;
-        
-        if(currentMainType === 'multiple') {
-            const opts = Array.from(document.querySelectorAll('.opt')).map(i => i.value.trim());
-            const exps = Array.from(document.querySelectorAll('.opt-exp')).map(i => i.value.trim()); // 개별 해설 저장
-
-            const correct = Array.from(document.querySelectorAll('input[name="correct"]')).find(r => r.checked)?.value;
-            if(opts.some(v => v === "")) return alert("5지선다를 모두 채워주세요.");
-            if(correct === undefined) return alert("정답을 체크하세요.");
-            
-            data.options = opts; 
-            data.optionExplanations = exps; // 해설 데이터 구조에 추가
-            data.correct = correct;
+        if (currentMainType === 'multiple') {
+            data.options = Array.from(document.querySelectorAll('.opt')).map(i => i.value.trim());
+            data.correct = Array.from(document.querySelectorAll('input[name="correct"]')).findIndex(r => r.checked);
         } else {
-            const ans = document.getElementById('short-answer').value.trim();
-            if(!ans) return alert("정답을 입력하세요.");
-            data.answer = ans;
+            data.answer = document.getElementById('short-answer').value.trim();
         }
 
-        if(editingId) { questions[questions.findIndex(q => q.id === editingId)] = data; }
-        else { questions.push(data); }
-        document.getElementById('q-count').innerText = questions.length;
+        if (editingId) {
+            const idx = questions.findIndex(q => q.id === editingId);
+            if(idx !== -1) questions[idx] = data;
+        } else { questions.push(data); }
+
         resetForm(); updatePreview(); switchTab('list');
     }
 
+    function editQuestion(id) {
+        const q = questions.find(item => item.id === id);
+        if (!q) return;
+        editingId = id;
+        fillForm(q, "✅ 수정 완료");
+    }
+
+    function copyQuestion(id) {
+        const q = questions.find(item => item.id === id);
+        if (!q) return;
+        editingId = null; // 복사는 새 ID로 저장되게 함
+        fillForm(q, "+ 복사본 추가");
+    }
+
+    function fillForm(q, btnText) {
+        document.getElementById('editor-title').innerText = "편집 중";
+        document.getElementById('btn-save').innerText = btnText;
+        document.getElementById('btn-cancel').style.display = "block";
+        
+        fields.forEach(f => document.getElementById(f).value = q.tags[f === 'q-number' ? 'number' : f] || '');
+        setMainType(q.mainType);
+        document.getElementById('question-text').value = q.text;
+        document.getElementById('use-box').checked = q.useBox;
+        
+        const boxRadios = document.getElementsByName('boxType');
+        for (let r of boxRadios) { r.checked = (r.value === (q.boxType || 'text')); }
+        
+        toggleBoxInput();
+
+        if (q.useBox) {
+            if (q.boxType === 'items') {
+                const container = document.getElementById('items-container');
+                container.innerHTML = '';
+                try {
+                    JSON.parse(q.smartBoxData).forEach(item => addItemRow(item));
+                } catch (e) { console.error(e); }
+            } else {
+                document.getElementById('box-content-text').value = q.smartBoxData || "";
+            }
+        }
+
+        currentImage = q.image || "";
+        document.getElementById('p-image').src = currentImage;
+        document.getElementById('p-image').style.display = currentImage ? 'block' : 'none';
+
+        if (q.mainType === 'multiple') {
+            q.options.forEach((val, i) => { if(document.querySelectorAll('.opt')[i]) document.querySelectorAll('.opt')[i].value = val; });
+            const radios = document.querySelectorAll('input[name="correct"]');
+            if (q.correct !== -1 && radios[q.correct]) radios[q.correct].checked = true;
+        } else {
+            document.getElementById('short-answer').value = q.answer || '';
+        }
+        document.getElementById('teacher-memo').value = q.memo || '';
+        updatePreview(); switchTab('live');
+    }
+
+    // 5. 유틸리티 (미리보기, 리스트, 파일)
     function resetForm() {
         editingId = null;
         document.getElementById('editor-title').innerText = "MAPRO 편집기";
@@ -467,86 +506,180 @@ function shuffleBoxContent() {
         document.getElementById('question-text').value = '';
         document.getElementById('use-box').checked = false;
         toggleBoxInput();
-        document.getElementById('box-content').value = '';
-        document.getElementById('image-input').value = '';
+        document.getElementById('items-container').innerHTML = '';
         currentImage = '';
         document.getElementById('p-image').style.display = 'none';
-        
         document.querySelectorAll('.opt').forEach(i => i.value = '');
-        document.querySelectorAll('.opt-exp').forEach(i => i.value = ''); // 해설 초기화
-
         document.querySelectorAll('input[name="correct"]').forEach(r => r.checked = false);
         document.getElementById('short-answer').value = '';
-        document.getElementById('teacher-memo').value = ''; // 메모 초기화
+        document.getElementById('teacher-memo').value = '';
+    }
+// 행 삭제 함수 수정
+function deleteRow(btn) {
+    // [추가] confirm 창으로 사용자 확인
+    if (confirm("이 보기를 삭제하시겠습니까?")) {
+        const row = btn.closest('.item-row');
+        row.remove();
+        
+        // 기호(ㄱ,ㄴ,ㄷ) 순서 재정렬
+        const rows = document.querySelectorAll('.item-row');
+        rows.forEach((r, i) => {
+            const labelSpan = r.querySelector('.item-label');
+            if (labelSpan) {
+                labelSpan.innerText = labels[i];
+            }
+        });
+        
+        // 미리보기 실시간 반영
+        updatePreview();
+    }
+}
+ function updatePreview() {
+    // 1. 기본 정보 태그
+    const pTags = document.getElementById('p-tags');
+    pTags.innerHTML = '';
+    fields.forEach(f => {
+        const val = document.getElementById(f).value;
+        if(val) {
+            const span = document.createElement('span');
+            span.className = 'hashtag';
+            span.innerText = val;
+            pTags.appendChild(span);
+        }
+    });
+    
+    // 2. 질문 텍스트
+    document.getElementById('p-question').innerText = document.getElementById('question-text').value || "문제를 입력하세요.";
+    
+    // 3. 이미지
+    const pImg = document.getElementById('p-image');
+    if (currentImage) {
+        pImg.src = currentImage;
+        pImg.style.display = 'block';
+    } else {
+        pImg.style.display = 'none';
     }
 
-    function renderList() {
-        const searchTerm = document.getElementById('search-input').value.toLowerCase();
-        const container = document.getElementById('question-list');
-        
-        const filtered = questions.filter(q => {
-            const tagString = Object.values(q.tags).join(' ').toLowerCase();
-            const contentString = q.text.toLowerCase();
-            const memoString = (q.memo || "").toLowerCase(); // 메모도 검색
-            return tagString.includes(searchTerm) || contentString.includes(searchTerm) || memoString.includes(searchTerm);
-        });
+    // 4. 박스(보기) 업데이트 + 정답 표시(선택사항)
+    const pBox = document.getElementById('p-box');
+    const useBox = document.getElementById('use-box').checked;
+    const boxType = document.querySelector('input[name="boxType"]:checked')?.value || 'text';
 
-        container.innerHTML = filtered.length === 0 ? '<p style="text-align:center; color:#999;">검색 결과가 없습니다.</p>' : '';
+    if(useBox) {
+        let content = "";
+        if (boxType === 'text') {
+            content = document.getElementById('box-content-text').value;
+        } else {
+            // 항목형일 때: 정답(O)인 항목은 옆에 (O) 표시를 붙여줌 (선생님 확인용)
+            content = Array.from(document.querySelectorAll('.item-row')).map((row, i) => {
+                const txt = row.querySelector('.main-text').value;
+                const isO = row.querySelector('.btn-ox').classList.contains('is-o');
+                return txt ? `${labels[i]}. ${txt}` : null;
+            }).filter(t => t).join('\n');
+        }
+        pBox.innerText = content;
+        pBox.style.display = content ? 'block' : 'none';
+    } else { 
+        pBox.style.display = 'none'; 
+    }
+
+    // 5. 객관식 선지 업데이트 (정답 강조 핵심!)
+    const pOptions = document.getElementById('p-options');
+    if (currentMainType === 'multiple') {
+        const optInputs = document.querySelectorAll('.opt');
+        const radios = document.querySelectorAll('input[name="correct"]');
+        const labelsNum = ['①', '②', '③', '④', '⑤'];
+        let optHTML = "";
         
-        filtered.forEach((q, idx) => {
+        optInputs.forEach((input, i) => {
+            if (input.value.trim()) {
+                const isChecked = radios[i].checked;
+                // [강조] 정답인 경우 클래스(correct-highlight)와 빨간색 스타일 부여
+                const style = isChecked ? 'color: black; font-weight: bold;' : '';
+                const checkMark = isChecked ? ' <span style="font-size: 0.9em;"></span>' : '';
+                
+                optHTML += `<div class="preview-opt" style="${style}">${labelsNum[i]} ${input.value}${checkMark}</div>`;
+            }
+        });
+        pOptions.innerHTML = optHTML;
+        pOptions.style.display = 'block';
+    } else {
+        // 주관식 정답 표시
+        const shortAns = document.getElementById('short-answer').value;
+        pOptions.innerHTML = shortAns ? `<div style="color: black; font-weight: bold;">정답: ${shortAns}</div>` : '';
+        pOptions.style.display = shortAns ? 'block' : 'none';
+    }
+
+    // 6. 해설 및 메모
+    const memoVal = document.getElementById('teacher-memo').value;
+    const pMemo = document.getElementById('p-memo');
+    let expContent = "";
+    if (currentMainType === 'multiple') {
+        const expInputs = document.querySelectorAll('.opt-exp');
+        expInputs.forEach((exp, i) => {
+            if (exp.value.trim()) {
+                expContent += `<div style="font-size:0.85em; color:#555; margin-bottom:2px;">• ${i+1}번 해설: ${exp.value}</div>`;
+            }
+        });
+    }
+
+    if (memoVal || expContent) {
+        pMemo.innerHTML = `<strong>📝 해설 및 메모</strong><br>${expContent}${memoVal.replace(/\n/g, '<br>')}`;
+        pMemo.style.display = "block";
+    } else {
+        pMemo.style.display = "none";
+    }
+}
+
+    function renderList() {
+        const container = document.getElementById('question-list');
+        container.innerHTML = questions.length === 0 ? '<p>결과 없음</p>' : '';
+        questions.forEach(q => {
             const card = document.createElement('div');
             card.className = 'question-card';
-            const tagHtml = Object.values(q.tags).filter(v => v).map(v => `<span class="hashtag">${v}</span>`).join('');
-            
-            // 리스트 뷰 렌더링
-            let optionsHtml = '';
-            if(q.mainType === 'multiple') {
-                optionsHtml = `<ul style="list-style:none; padding:0; margin-top:10px;">
-                    ${q.options.map((o, i) => {
-                        const exp = q.optionExplanations && q.optionExplanations[i] ? `<span class="preview-exp">└ ${q.optionExplanations[i]}</span>` : '';
-                        return `<li style="margin-bottom:8px; ${q.correct == i ? 'color:#4a90e2; font-weight:bold;' : ''}">
-                                ${['①','②','③','④','⑤'][i]} ${o} ${exp}
-                                </li>`;
-                    }).join('')}
-                </ul>`;
-            } else {
-                optionsHtml = `<div style="margin-top:10px; padding:8px; background:#f0f0f0;"><strong>정답:</strong> ${q.answer}</div>`;
-            }
-
-            const memoHtml = q.memo ? `<div class="preview-memo"><strong>📝 선생님 메모</strong>${q.memo}</div>` : '';
-
+            const ansLabel = q.mainType === 'multiple' ? (['①','②','③','④','⑤'][q.correct] || '미정') : q.answer;
             card.innerHTML = `
                 <div class="card-controls">
-                    <button class="control-btn" onclick="copyQuestion(${q.id})">복사</button>
-                    <button class="control-btn" onclick="editQuestion(${q.id})">수정</button>
-                    <button class="control-btn" style="color:red;" onclick="removeQuestion(${q.id})">삭제</button>
+                    <button onclick="copyQuestion(${q.id})">복사</button>
+                    <button onclick="editQuestion(${q.id})">수정</button>
+                    <button style="color:red;" onclick="removeQuestion(${q.id})">삭제</button>
                 </div>
-                <div style="margin-bottom:10px;">${tagHtml}</div>
-                <div style="font-weight:bold; white-space:pre-wrap;">${q.text}</div>
-                ${q.image ? `<img src="${q.image}" class="preview-img">` : ''}
-                ${q.useBox ? `<div class="box-preview">${q.boxContent}</div>` : ''}
-                
-                ${optionsHtml}
-                ${memoHtml}
+                <strong>${q.text}</strong>
+                <div style="font-size:0.8em; color:blue;">정답: ${ansLabel}</div>
             `;
             container.appendChild(card);
         });
+        document.getElementById('q-count').innerText = questions.length;
     }
 
-    function removeQuestion(id) { if(confirm("삭제할까요?")) { questions = questions.filter(q => q.id !== id); document.getElementById('q-count').innerText = questions.length; renderList(); } }
-    function downloadJSON() { const blob = new Blob([JSON.stringify(questions, null, 2)], {type: 'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'asdf.json'; a.click(); }
-    function loadJSON(e) { const reader = new FileReader(); reader.onload = (ev) => { questions = JSON.parse(ev.target.result); document.getElementById('q-count').innerText = questions.length; switchTab('list'); }; reader.readAsText(e.target.files[0]); }
-    function cancelEdit() { resetForm(); updatePreview(); }
+    function removeQuestion(id) { if(confirm("삭제할까요?")) { questions = questions.filter(q => q.id !== id); renderList(); } }
+    function downloadJSON() { 
+        const blob = new Blob([JSON.stringify(questions, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'data.json'; a.click(); 
+    }
+    function loadJSON(e) {
+        const reader = new FileReader();
+        reader.onload = (ev) => { questions = JSON.parse(ev.target.result); renderList(); };
+        reader.readAsText(e.target.files[0]);
+    }
 
-    fields.forEach(f => document.getElementById(f).addEventListener('input', updatePreview));
-    document.getElementById('question-text').addEventListener('input', updatePreview);
-    document.getElementById('box-content').addEventListener('input', updatePreview);
-    document.getElementById('short-answer').addEventListener('input', updatePreview);
-    document.getElementById('teacher-memo').addEventListener('input', updatePreview);
-    document.addEventListener('input', function(e){
-        if(e.target.classList.contains('opt') || e.target.classList.contains('opt-exp')) updatePreview();
+    document.getElementById('image-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { currentImage = ev.target.result; updatePreview(); };
+            reader.readAsDataURL(file);
+        }
     });
-    document.querySelectorAll('input[name="correct"]').forEach(i => i.addEventListener('change', updatePreview));
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
+        document.getElementById('t-' + tab).classList.add('active');
+        document.getElementById('tab-' + tab).classList.add('active');
+        if(tab === 'list') renderList();
+    }
+    
+    document.addEventListener('input', updatePreview);
 </script>
 </body>
 </html>
