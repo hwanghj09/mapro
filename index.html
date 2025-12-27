@@ -374,6 +374,7 @@
     const mainVal = data ? (data.text || data.original || "") : "";
     const altVal = data ? (data.alt || "") : "";
     const mainIsO = data ? (data.isCorrect === true) : true; 
+    const altIsO = data ? (data.altIsCorrect === true) : true;
 
     row.innerHTML = `
         <div class="item-label" style="font-weight:bold; width:30px; padding-top:8px;">${labels[currentIndex]}</div>
@@ -409,7 +410,7 @@
     function toggleOX(el) {
     const knob = el.querySelector('.ox-knob');
     
-    // 현재 상태 반전
+    // 클릭한 요소의 상태만 반전시킴 (원본/변형 서로 간섭 없음)
     if (el.classList.contains('is-o')) {
         el.classList.remove('is-o');
         el.classList.add('is-x');
@@ -420,20 +421,6 @@
         knob.innerText = 'O';
     }
 
-    // [스마트 연동] 원본(ox-main)을 바꾸면 변형(ox-alt)은 자동으로 반대값 세팅
-    if(el.classList.contains('ox-main')) {
-        const row = el.closest('.item-row');
-        const altSwitch = row.querySelector('.ox-alt');
-        const altKnob = altSwitch.querySelector('.ox-knob');
-        
-        if (el.classList.contains('is-o')) {
-            altSwitch.classList.replace('is-o', 'is-x');
-            altKnob.innerText = 'X';
-        } else {
-            altSwitch.classList.replace('is-x', 'is-o');
-            altKnob.innerText = 'O';
-        }
-    }
     updatePreview();
 }
 async function generateVariant(idx) {
